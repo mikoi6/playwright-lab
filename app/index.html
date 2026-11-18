@@ -1,87 +1,100 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><title>Todo</title>
+<meta charset="UTF-8">
+<title>Todo</title>
 <style>
-  body{font:15px/1.6 system-ui;max-width:520px;margin:48px auto;padding:0 20px;color:#222}
-  form{display:flex;gap:8px;margin-bottom:16px}
-  input[type=text]{flex:1;padding:8px 10px;border:1px solid #ccc;border-radius:4px}
-  button{padding:8px 14px;border:1px solid #bbb;background:#f5f5f5;border-radius:4px;cursor:pointer}
-  ul{list-style:none;padding:0}
-  li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #eee}
-  li span{flex:1}
-  li.done span{text-decoration:line-through;color:#999}
-  .empty{color:#999}
-  footer{display:flex;justify-content:space-between;margin-top:16px;font-size:13px;color:#666}
+  body{font-family:system-ui,"Microsoft YaHei",sans-serif;max-width:440px;margin:60px auto;padding:0 20px;color:#1c2733;}
+  h1{font-size:22px;margin:0 0 18px;}
+  .row{display:flex;gap:8px;}
+  input[type=text]{flex:1;padding:9px 11px;border:1px solid #cfd6dd;border-radius:6px;font-size:15px;}
+  button{padding:9px 14px;border:1px solid #cfd6dd;background:#fff;border-radius:6px;cursor:pointer;font-size:14px;}
+  button.primary{background:#1d3f5e;color:#fff;border-color:#1d3f5e;}
+  ul{list-style:none;padding:0;margin:18px 0 0;}
+  li{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #eceff2;}
+  li span{flex:1;}
+  li.done span{text-decoration:line-through;color:#9aa5b1;}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:13px;color:#5b6b7a;}
+  .empty{color:#9aa5b1;font-size:14px;padding:18px 0;}
 </style>
 </head>
 <body>
   <h1>Todo</h1>
 
-  <form data-testid="new-todo-form">
-    <input type="text" data-testid="new-todo" placeholder="要做什么？">
-    <button type="submit" data-testid="add-btn">添加</button>
-  </form>
+  <div class="row">
+    <input type="text" id="new-todo" data-testid="new-todo" placeholder="要做什么？">
+    <button class="primary" id="add" data-testid="add">添加</button>
+  </div>
 
-  <p class="empty" data-testid="empty-state">还没有任何待办</p>
-  <ul data-testid="todo-list"></ul>
+  <ul id="list"></ul>
 
-  <footer>
-    <span><b data-testid="count">0</b> 项未完成</span>
-    <button data-testid="clear-done">清除已完成</button>
-  </footer>
+  <div class="bar">
+    <span data-testid="count">0 项 / 0 未完成</span>
+    <button id="clear-done" data-testid="clear-done">清除已完成</button>
+  </div>
 
 <script>
-const KEY = 'todos';
-let todos = JSON.parse(localStorage.getItem(KEY) || '[]');
-const $ = id => document.querySelector(`[data-testid="${id}"]`);
-const list = $('todo-list'), empty = $('empty-state'),
-      count = $('count'), input = $('new-todo');
+const api = {
+  list:   () => fetch('/api/todos').then(r => r.json()),
+  add:    (title) => fetch('/api/todos', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title }) }),
+  toggle: (id, done) => fetch('/api/todos/' + id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ done }) }),
+  remove: (id) => fetch('/api/todos/' + id, { method: 'DELETE' }),
+};
 
-function render() {
-  list.innerHTML = '';
-  todos.forEach(t => {
-    const li = document.createElement('li');
-    li.dataset.testid = 'todo-item';
-    li.dataset.id = t.id;
-    li.className = t.done ? 'done' : '';
-    li.innerHTML = `
-      <input type="checkbox" data-testid="toggle" ${t.done ? 'checked' : ''}>
-      <span data-testid="todo-text"></span>
-      <button data-testid="delete">×</button>`;
-    li.querySelector('[data-testid="todo-text"]').textContent = t.text;
-    list.appendChild(li);
-  });
-  empty.hidden = todos.length > 0;
-  count.textContent = todos.filter(t => !t.done).length;
-  localStorage.setItem(KEY, JSON.stringify(todos));
+async function render() {
+  const list = await api.list();
+  const ul = document.getElementById('list');
+  ul.innerHTML = '';
+
+  if (list.length === 0) {
+    ul.innerHTML = '<li class="empty" data-testid="empty">还没有待办</li>';
+  } else {
+    list.forEach(t => {
+      const li = document.createElement('li');
+      li.dataset.testid = 'todo-item';
+      li.className = t.done ? 'done' : '';
+      li.innerHTML =
+        '<input type="checkbox" data-testid="toggle">' +
+        '<span data-testid="todo-title"></span>' +
+        '<button data-testid="delete">删除</button>';
+
+      li.querySelector('[data-testid=toggle]').checked = t.done;
+      li.querySelector('span').textContent = t.title;
+      li.querySelector('[data-testid=toggle]').onchange = async () => {
+        await api.toggle(t.id, !t.done);
+        render();
+      };
+      li.querySelector('[data-testid=delete]').onclick = async () => {
+        await api.remove(t.id);
+        render();
+      };
+      ul.appendChild(li);
+    });
+  }
+
+  const done = list.filter(t => t.done).length;
+  document.querySelector('[data-testid=count]').textContent =
+    list.length + ' 项 / ' + (list.length - done) + ' 未完成';
 }
 
-$('new-todo-form').addEventListener('submit', e => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
-  todos.push({ id: Date.now(), text, done: false });
+document.getElementById('add').onclick = async () => {
+  const input = document.getElementById('new-todo');
+  const title = input.value.trim();
+  if (!title) return;
+  await api.add(title);
   input.value = '';
   render();
-});
+};
 
-list.addEventListener('click', e => {
-  const li = e.target.closest('[data-testid="todo-item"]');
-  if (!li) return;
-  const id = Number(li.dataset.id);
-  if (e.target.dataset.testid === 'delete') {
-    todos = todos.filter(t => t.id !== id);
-  } else if (e.target.dataset.testid === 'toggle') {
-    todos.find(t => t.id === id).done = e.target.checked;
-  }
+document.getElementById('clear-done').onclick = async () => {
+  const list = await api.list();
+  for (const t of list.filter(x => x.done)) await api.remove(t.id);
   render();
-});
-
-$('clear-done').addEventListener('click', () => {
-  todos = todos.filter(t => !t.done);
-  render();
-});
+};
 
 render();
 </script>
