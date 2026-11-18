@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><title>Todo</title>
+<style>
+  body{font:15px/1.6 system-ui;max-width:520px;margin:48px auto;padding:0 20px;color:#222}
+  form{display:flex;gap:8px;margin-bottom:16px}
+  input[type=text]{flex:1;padding:8px 10px;border:1px solid #ccc;border-radius:4px}
+  button{padding:8px 14px;border:1px solid #bbb;background:#f5f5f5;border-radius:4px;cursor:pointer}
+  ul{list-style:none;padding:0}
+  li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #eee}
+  li span{flex:1}
+  li.done span{text-decoration:line-through;color:#999}
+  .empty{color:#999}
+  footer{display:flex;justify-content:space-between;margin-top:16px;font-size:13px;color:#666}
+</style>
+</head>
+<body>
+  <h1>Todo</h1>
+
+  <form data-testid="new-todo-form">
+    <input type="text" data-testid="new-todo" placeholder="要做什么？">
+    <button type="submit" data-testid="add-btn">添加</button>
+  </form>
+
+  <p class="empty" data-testid="empty-state">还没有任何待办</p>
+  <ul data-testid="todo-list"></ul>
+
+  <footer>
+    <span><b data-testid="count">0</b> 项未完成</span>
+    <button data-testid="clear-done">清除已完成</button>
+  </footer>
+
+<script>
+const KEY = 'todos';
+let todos = JSON.parse(localStorage.getItem(KEY) || '[]');
+const $ = id => document.querySelector(`[data-testid="${id}"]`);
+const list = $('todo-list'), empty = $('empty-state'),
+      count = $('count'), input = $('new-todo');
+
+function render() {
+  list.innerHTML = '';
+  todos.forEach(t => {
+    const li = document.createElement('li');
+    li.dataset.testid = 'todo-item';
+    li.dataset.id = t.id;
+    li.className = t.done ? 'done' : '';
+    li.innerHTML = `
+      <input type="checkbox" data-testid="toggle" ${t.done ? 'checked' : ''}>
+      <span data-testid="todo-text"></span>
+      <button data-testid="delete">×</button>`;
+    li.querySelector('[data-testid="todo-text"]').textContent = t.text;
+    list.appendChild(li);
+  });
+  empty.hidden = todos.length > 0;
+  count.textContent = todos.filter(t => !t.done).length;
+  localStorage.setItem(KEY, JSON.stringify(todos));
+}
+
+$('new-todo-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  todos.push({ id: Date.now(), text, done: false });
+  input.value = '';
+  render();
+});
+
+list.addEventListener('click', e => {
+  const li = e.target.closest('[data-testid="todo-item"]');
+  if (!li) return;
+  const id = Number(li.dataset.id);
+  if (e.target.dataset.testid === 'delete') {
+    todos = todos.filter(t => t.id !== id);
+  } else if (e.target.dataset.testid === 'toggle') {
+    todos.find(t => t.id === id).done = e.target.checked;
+  }
+  render();
+});
+
+$('clear-done').addEventListener('click', () => {
+  todos = todos.filter(t => !t.done);
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
